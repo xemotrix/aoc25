@@ -7,14 +7,13 @@ build-type:         Simple
 common warnings
     ghc-options: -Wall
 
-
 library
     import:           warnings
     exposed-modules:
         Combinators
         ,Utils
     build-depends:    
-        base ^>=4.19.1.0
+        base
     hs-source-dirs:   src
     default-language: GHC2021
 
@@ -22,11 +21,11 @@ executable aoc25
     import:           warnings
     main-is:          Main.hs
     other-modules:
-        Day1
+        Day1,Day2
     build-depends:
-        base ^>=4.19.1.0
+        base
         ,aoc25
         ,containers ^>= 0.7
-    build-depends:    base ^>=4.19.1.0
+    build-depends:    base
     hs-source-dirs:   app
     default-language: GHC2021

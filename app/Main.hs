@@ -1,7 +1,8 @@
 module Main where
 
-import System.Environment (getArgs)
 import Day1
+import Day2
+import System.Environment (getArgs)
 
 type Day = (Int, String -> (String, String))
 
@@ -9,7 +10,9 @@ days :: [Day]
 days =
   zip
     [1 ..]
-    [ Day1.run ]
+    [ Day1.run,
+      Day2.run
+    ]
 
 main :: IO ()
 main = do
@@ -25,11 +28,11 @@ runDay (daynum, dayf) = do
   input <- readInput daynum
   putStrLn $ fmtDay $ dayf input
   where
-    fmtDay (part1, part2) =
+    fmtDay (p1, p2) =
       "day "
         ++ show daynum
         ++ "\n\tpart 1: "
-        ++ part1
+        ++ p1
         ++ "\n\tpart 2: "
-        ++ part2
+        ++ p2
     readInput n = readFile $ "./inputs/input" ++ show n ++ ".txt"
