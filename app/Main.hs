@@ -2,6 +2,7 @@ module Main where
 
 import Day1
 import Day2
+import Day3
 import System.Environment (getArgs)
 
 type Day = (Int, String -> (String, String))
@@ -11,7 +12,8 @@ days =
   zip
     [1 ..]
     [ Day1.run,
-      Day2.run
+      Day2.run,
+      Day3.run
     ]
 
 main :: IO ()
