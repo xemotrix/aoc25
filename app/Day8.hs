@@ -2,6 +2,7 @@ module Day8 (run) where
 
 import Combinators (both)
 import Control.Arrow ((&&&), (***))
+import Control.Monad (when)
 import Control.Monad.State
 import Data.Function (on)
 import Data.List (group, nub, sort, sortBy)
@@ -14,7 +15,7 @@ type JB = (Int, Int, Int)
 
 data Env = Env
   { groups :: Map JB Int,
-    p1Res, p2Res, iter, totalJuns :: Int
+    p1Res, iter, totalJuns :: Int
   }
 
 nextIter :: State Env Int
@@ -30,16 +31,13 @@ run :: String -> (String, String)
 run = both show . part1and2 . parse
   where
     part1and2 = uncurry evalState . (calcConns *** buildInitState)
-    buildInitState = Env M.empty 0 0 1000
+    buildInitState = Env M.empty 0 1000
 
 calcConns :: [(JB, JB)] -> State Env (Int, Int)
 calcConns ((jb, jb') : conns) = do
   gs <- gets groups
   it <- nextIter
-  modify $ case it of
-    x | x < 0 -> (\s -> s {p2Res = calcP2Res (jb, jb')})
-    0 -> (\s -> s {p1Res = calcP1Res gs})
-    _ -> id
+  when (it == 0) $ modify (\s -> s {p1Res = calcP1Res gs})
   modifyGroups $ case both (`M.lookup` gs) (jb, jb') of
     (Just idx, Just idx')
       | idx /= idx' -> M.map (\i -> if i == idx' then idx else i)
@@ -50,7 +48,7 @@ calcConns ((jb, jb') : conns) = do
   gs' <- gets groups
   totalJuns <- gets totalJuns
   if length gs' == totalJuns && 1 == length (nub (M.elems gs'))
-    then gets (p1Res &&& p2Res)
+    then gets ((,) . p1Res) <*> pure (calcP2Res (jb, jb'))
     else calcConns conns
   where
     calcP2Res = uncurry (*) . both (\(x, _, _) -> x)
