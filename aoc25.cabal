@@ -25,6 +25,7 @@ executable aoc25
     build-depends:
         base
         ,aoc25
+        ,mtl ^>= 2.3.1
         ,containers ^>= 0.7
     build-depends:    base
     hs-source-dirs:   app

@@ -1,7 +1,8 @@
 module Day8 (run) where
 
 import Combinators (both)
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&), (***))
+import Control.Monad.State
 import Data.Function (on)
 import Data.List (group, nub, sort, sortBy)
 import Data.Map (Map)
@@ -11,53 +12,53 @@ import Utils (chunk, split)
 
 type JB = (Int, Int, Int)
 
-data State = State
-  { getGroups :: Map JB Int,
-    getP1Res, getP2Res, getIter, getConnIdx, getTotalJuns :: Int
+data Env = Env
+  { groups :: Map JB Int,
+    p1Res, p2Res, iter, totalJuns :: Int
   }
-  deriving (Show)
+
+nextIter :: State Env Int
+nextIter = do
+  i <- gets iter
+  modify (\s -> s {iter = iter s - 1})
+  return i
+
+modifyGroups :: (Map JB Int -> Map JB Int) -> State Env ()
+modifyGroups f = modify (\s -> s {groups = f (groups s)})
 
 run :: String -> (String, String)
 run = both show . part1and2 . parse
   where
-    part1and2 = (getP1Res &&& getP2Res) . uncurry (calcConns . State M.empty 0 0 1000 0)
+    part1and2 = uncurry evalState . (calcConns *** buildInitState)
+    buildInitState = Env M.empty 0 0 1000
 
-calcConns :: State -> [(JB, JB)] -> State
-calcConns s ((jb, jb') : conns) =
-  case getIter s of
-    -1 ->
-      if isAllConnected
-        then s {getP2Res = calcP2Res (jb, jb')}
-        else calcConns newS conns
-    0 -> calcConns (s {getIter = -1, getP1Res = calcP1Res $ getGroups s}) conns
-    _ -> calcConns (newS {getIter = getIter s - 1}) conns
+calcConns :: [(JB, JB)] -> State Env (Int, Int)
+calcConns ((jb, jb') : conns) = do
+  gs <- gets groups
+  it <- nextIter
+  modify $ case it of
+    x | x < 0 -> (\s -> s {p2Res = calcP2Res (jb, jb')})
+    0 -> (\s -> s {p1Res = calcP1Res gs})
+    _ -> id
+  modifyGroups $ case both (`M.lookup` gs) (jb, jb') of
+    (Just idx, Just idx')
+      | idx /= idx' -> M.map (\i -> if i == idx' then idx else i)
+      | otherwise -> id
+    (Nothing, Just idx') -> M.insert jb idx'
+    (Just idx, Nothing) -> M.insert jb' idx
+    (Nothing, Nothing) -> M.insert jb it . M.insert jb' it
+  gs' <- gets groups
+  totalJuns <- gets totalJuns
+  if length gs' == totalJuns && 1 == length (nub (M.elems gs'))
+    then gets (p1Res &&& p2Res)
+    else calcConns conns
   where
-    calcP1Res = product . take 3 . sortBy (comparing Down) . map length . group . sort . M.elems
     calcP2Res = uncurry (*) . both (\(x, _, _) -> x)
-    isAllConnected = length (getGroups newS) == getTotalJuns newS && 1 == length (nub (M.elems (getGroups newS)))
-    newS = case both (`M.lookup` getGroups s) (jb, jb') of
-      (Just idx, Just idx') | idx == idx' -> s
-      (Just idx, Just idx') ->
-        s
-          { getGroups = M.map (\i -> if i == idx' then idx else i) (getGroups s)
-          }
-      (Nothing, Just idx') ->
-        s
-          { getGroups = M.insert jb idx' (getGroups s)
-          }
-      (Just idx, Nothing) ->
-        s
-          { getGroups = M.insert jb' idx (getGroups s)
-          }
-      (Nothing, Nothing) ->
-        s
-          { getGroups = M.insert jb (getConnIdx s) $ M.insert jb' (getConnIdx s) (getGroups s),
-            getConnIdx = getConnIdx s + 1
-          }
-calcConns _ [] = error "Invalid input"
+    calcP1Res = product . take 3 . sortBy (comparing Down) . map length . group . sort . M.elems
+calcConns [] = error "Invalid input"
 
-parse :: String -> (Int, [(JB, JB)])
-parse = (length &&& sortByDist) . parseJBs
+parse :: String -> ([(JB, JB)], Int)
+parse = (sortByDist &&& length) . parseJBs
   where
     parseJBs = map toTuple . chunk 3 . map read . concatMap (split ',') . lines
     sortByDist = sortBy (compare `on` dist) . connections
