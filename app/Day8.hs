@@ -11,46 +11,58 @@ import Utils (chunk, split)
 
 type JB = (Int, Int, Int)
 
-nConns :: Int
-nConns = 1000
+data State = State
+  { getGroups :: Map JB Int,
+    getP1Res, getP2Res, getIter, getConnIdx, getTotalJuns :: Int
+  }
+  deriving (Show)
 
 run :: String -> (String, String)
 run = both show . part1and2 . parse
-
-part1and2 :: ([(JB, JB)], Int) -> (Int, Int)
-part1and2 (connsSorted, nJunBs) = (p1Res', p2Res')
   where
-    (p1Res, p2Res) = calcConns nConns nJunBs 0 connsSorted M.empty M.empty
-    p1Res' = product $ take 3 $ sortBy (comparing Down) $ map length $ group $ sort $ M.elems p1Res
-    p2Res' = uncurry (*) $ both (\(x, _, _) -> x) p2Res
+    part1and2 = (getP1Res &&& getP2Res) . uncurry (calcConns . State M.empty 0 0 1000 0)
 
-combinations :: [JB] -> [(JB, JB)]
-combinations [] = []
-combinations (x : xs) = map (x,) xs ++ combinations xs
-
-calcConns :: Int -> Int -> Int -> [(JB, JB)] -> Map JB Int -> Map JB Int -> (Map JB Int, (JB, JB))
-calcConns n totalJuns count ((jb, jb') : conns) accM p1Res =
-  case n of
+calcConns :: State -> [(JB, JB)] -> State
+calcConns s ((jb, jb') : conns) =
+  case getIter s of
     -1 ->
-      if length newM == totalJuns && 1 == length (nub (M.elems newM))
-        then (p1Res, (jb, jb'))
-        else calcConns (-1) totalJuns newCount conns newM p1Res
-    0 -> calcConns (-1) totalJuns newCount conns newM newM
-    _ -> calcConns (n - 1) totalJuns newCount conns newM p1Res
+      if isAllConnected
+        then s {getP2Res = calcP2Res (jb, jb')}
+        else calcConns newS conns
+    0 -> calcConns (s {getIter = -1, getP1Res = calcP1Res $ getGroups s}) conns
+    _ -> calcConns (newS {getIter = getIter s - 1}) conns
   where
-    (newCount, newM) = case (M.lookup jb accM, M.lookup jb' accM) of
-      (Just idx, Just idx') | idx == idx' -> (count, accM)
-      (Just idx, Just idx') -> (count, M.map (\i -> if i == idx' then idx else i) accM)
-      (Nothing, Just idx') -> (count, M.insert jb idx' accM)
-      (Just idx, Nothing) -> (count, M.insert jb' idx accM)
-      (Nothing, Nothing) -> (count + 1, M.insert jb count $ M.insert jb' count accM)
-calcConns _ _ _ [] _ _ = error "Invalid input"
+    calcP1Res = product . take 3 . sortBy (comparing Down) . map length . group . sort . M.elems
+    calcP2Res = uncurry (*) . both (\(x, _, _) -> x)
+    isAllConnected = length (getGroups newS) == getTotalJuns newS && 1 == length (nub (M.elems (getGroups newS)))
+    newS = case both (`M.lookup` getGroups s) (jb, jb') of
+      (Just idx, Just idx') | idx == idx' -> s
+      (Just idx, Just idx') ->
+        s
+          { getGroups = M.map (\i -> if i == idx' then idx else i) (getGroups s)
+          }
+      (Nothing, Just idx') ->
+        s
+          { getGroups = M.insert jb idx' (getGroups s)
+          }
+      (Just idx, Nothing) ->
+        s
+          { getGroups = M.insert jb' idx (getGroups s)
+          }
+      (Nothing, Nothing) ->
+        s
+          { getGroups = M.insert jb (getConnIdx s) $ M.insert jb' (getConnIdx s) (getGroups s),
+            getConnIdx = getConnIdx s + 1
+          }
+calcConns _ [] = error "Invalid input"
 
-parse :: String -> ([(JB, JB)], Int)
-parse = (sortByDist &&& length) . parseJBs
+parse :: String -> (Int, [(JB, JB)])
+parse = (length &&& sortByDist) . parseJBs
   where
     parseJBs = map toTuple . chunk 3 . map read . concatMap (split ',') . lines
-    sortByDist = sortBy (compare `on` dist) . combinations
+    sortByDist = sortBy (compare `on` dist) . connections
     dist ((a, b, c), (x, y, z)) = (a - x) * (a - x) + (b - y) * (b - y) + (c - z) * (c - z)
     toTuple [a, b, c] = (a, b, c)
     toTuple _ = error "Invalid input"
+    connections [] = []
+    connections (x : xs) = map (x,) xs ++ connections xs
